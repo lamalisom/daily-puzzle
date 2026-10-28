@@ -1,7 +1,7 @@
 /**
  * app.js - Main Application Coordinator & Routing
- * Orchestrates Jigsaw and Sudoku modes, audio synthesis, Ad Placement API,
- * streak tracking, timers, and multilingual UI.
+ * Orchestrates Jigsaw, Sudoku, Memory Training, Energy System,
+ * Web Audio synthesis, Ad Placement API, streak tracking, and i18n.
  */
 
 import { StorageManager } from './storage.js';
@@ -9,15 +9,16 @@ import { I18nManager } from './i18n.js';
 import { AdManager } from './ads.js';
 import { JigsawEngine } from './jigsaw.js';
 import { SudokuEngine } from './sudoku.js';
+import { MemoryEngine } from './memory.js';
 
 class App {
   constructor() {
-    this.currentMode = 'jigsaw'; // 'jigsaw' | 'sudoku'
+    this.currentMode = 'jigsaw'; // 'jigsaw' | 'sudoku' | 'memory'
     this.timerInterval = null;
+    this.energyInterval = null;
     this.secondsElapsed = 0;
     this.isMuted = false;
 
-    // Initialize Subsystems
     this.storage = StorageManager;
     this.settings = this.storage.getSettings();
     this.isMuted = !this.settings.sound;
@@ -33,15 +34,18 @@ class App {
 
     this.jigsawEngine = null;
     this.sudokuEngine = null;
+    this.memoryEngine = null;
 
     this.initDOM();
+    this.updateEnergyUI();
+    this.startEnergyTicker();
     this.initGameMode(this.currentMode);
     this.updateStreakBadge();
     this.startTimer();
   }
 
   /**
-   * Procedural Audio Synthesizer (Web Audio API - 0KB bundle impact)
+   * Procedural Web Audio API Synthesizer (0KB external audio files)
    */
   initAudio() {
     try {
@@ -78,47 +82,45 @@ class App {
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.05);
-    } else if (type === 'snap') {
-      // Woodblock-like high snap sound
+    } else if (type === 'snap' || type === 'card_flip') {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(800, now);
-      osc.frequency.exponentialRampToValueAtTime(220, now + 0.09);
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      osc.frequency.setValueAtTime(750, now);
+      osc.frequency.exponentialRampToValueAtTime(260, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.09);
-    } else if (type === 'chime') {
-      // Hint chime
+      osc.stop(now + 0.08);
+    } else if (type === 'match' || type === 'chime') {
+      // Pleasant match chord
       [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + i * 0.08);
-        gain.gain.setValueAtTime(0.15, now + i * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25);
+        osc.frequency.setValueAtTime(freq, now + i * 0.07);
+        gain.gain.setValueAtTime(0.16, now + i * 0.07);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.22);
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.start(now + i * 0.08);
-        osc.stop(now + i * 0.08 + 0.25);
+        osc.start(now + i * 0.07);
+        osc.stop(now + i * 0.07 + 0.22);
       });
-    } else if (type === 'error') {
+    } else if (type === 'error' || type === 'mismatch') {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(180, now);
-      osc.frequency.linearRampToValueAtTime(120, now + 0.15);
-      gain.gain.setValueAtTime(0.15, now);
+      osc.frequency.linearRampToValueAtTime(110, now + 0.15);
+      gain.gain.setValueAtTime(0.14, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.15);
     } else if (type === 'victory') {
-      // Victorious major arpeggio
       const notes = [440, 554.37, 659.25, 880, 1108.73, 1318.51];
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -145,12 +147,96 @@ class App {
     }
   }
 
+  /**
+   * Energy System Ticker & UI
+   */
+  updateEnergyUI() {
+    const data = this.storage.getEnergyData();
+    const countEl = document.getElementById('energy-count');
+    const badgeEl = document.getElementById('energy-badge');
+
+    if (countEl) {
+      countEl.textContent = `${data.energy}/${data.maxEnergy}`;
+    }
+
+    if (badgeEl) {
+      if (data.energy <= 0) {
+        badgeEl.className = 'flex items-center gap-1 bg-rose-500/20 border border-rose-500/50 px-2.5 py-1 rounded-full text-xs font-bold text-rose-400 shadow-sm cursor-pointer animate-pulse';
+      } else {
+        badgeEl.className = 'flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-xs font-bold text-amber-300 shadow-sm cursor-pointer hover:bg-amber-500/20 transition-all';
+      }
+    }
+
+    const timerEl = document.getElementById('energy-recharge-timer');
+    if (timerEl) {
+      if (data.energy >= data.maxEnergy) {
+        timerEl.textContent = this.i18n.t('energyFull') || '滿';
+      } else {
+        const sec = Math.ceil(data.nextRechargeMs / 1000);
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        timerEl.textContent = `${m}:${s}`;
+      }
+    }
+  }
+
+  startEnergyTicker() {
+    if (this.energyInterval) clearInterval(this.energyInterval);
+    this.energyInterval = setInterval(() => {
+      this.updateEnergyUI();
+    }, 1000);
+  }
+
+  checkOrPromptEnergy() {
+    const data = this.storage.getEnergyData();
+    if (data.energy <= 0) {
+      this.showEnergyModal();
+      return false;
+    }
+    return true;
+  }
+
+  showEnergyModal() {
+    const modal = document.getElementById('modal-energy');
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+  }
+
   initDOM() {
     this.i18n.updateDOM();
 
     // Mode Switcher Tabs
     document.getElementById('tab-jigsaw')?.addEventListener('click', () => this.switchMode('jigsaw'));
     document.getElementById('tab-sudoku')?.addEventListener('click', () => this.switchMode('sudoku'));
+    document.getElementById('tab-memory')?.addEventListener('click', () => this.switchMode('memory'));
+
+    // Energy Badge click -> open Energy modal
+    document.getElementById('energy-badge')?.addEventListener('click', () => {
+      this.playSound('tap');
+      this.showEnergyModal();
+    });
+
+    document.getElementById('btn-close-energy')?.addEventListener('click', () => {
+      document.getElementById('modal-energy')?.classList.add('hidden');
+    });
+
+    // Watch Ad for Energy
+    document.getElementById('btn-watch-ad-energy')?.addEventListener('click', () => {
+      this.playSound('tap');
+      this.ads.showRewardedHint({
+        onRewardGranted: () => {
+          this.playSound('match');
+          this.storage.addEnergy(3);
+          this.updateEnergyUI();
+          document.getElementById('modal-energy')?.classList.add('hidden');
+          this.showToast(this.i18n.t('energyGranted'));
+        },
+        onDismissed: () => {
+          console.log('Energy Ad dismissed early');
+        }
+      });
+    });
 
     // Language Dropdown
     const langSelect = document.getElementById('lang-select');
@@ -160,7 +246,9 @@ class App {
         const lang = e.target.value;
         this.i18n.setLanguage(lang);
         this.storage.saveSettings({ lang });
-        this.renderSudokuGrid(); // Refresh UI labels
+        this.renderSudokuGrid();
+        this.updateJigsawStatus();
+        this.updateMemoryStatus();
       });
     }
 
@@ -176,7 +264,7 @@ class App {
       });
     }
 
-    // Rules / Settings Modal Toggle
+    // Rules / Settings Modal
     document.getElementById('btn-rules')?.addEventListener('click', () => {
       this.playSound('tap');
       document.getElementById('modal-rules')?.classList.remove('hidden');
@@ -265,7 +353,24 @@ class App {
       }
     });
 
-    // Sudoku Numeric Keypad (1-9)
+    // Memory Controls
+    document.getElementById('memory-difficulty')?.addEventListener('change', (e) => {
+      this.playSound('tap');
+      if (this.memoryEngine) {
+        this.memoryEngine.initGame(e.target.value);
+        this.updateMemoryStatus();
+      }
+    });
+
+    document.getElementById('btn-memory-reset')?.addEventListener('click', () => {
+      this.playSound('tap');
+      if (this.memoryEngine) {
+        this.memoryEngine.initGame(this.memoryEngine.difficulty);
+        this.updateMemoryStatus();
+      }
+    });
+
+    // Sudoku Numeric Keypad (1 - 9)
     const keypadContainer = document.getElementById('sudoku-keypad');
     if (keypadContainer) {
       keypadContainer.innerHTML = '';
@@ -320,36 +425,46 @@ class App {
 
   switchMode(mode) {
     if (this.currentMode === mode) return;
+
+    // Check Energy
+    if (!this.checkOrPromptEnergy()) {
+      return;
+    }
+
     this.playSound('tap');
     this.currentMode = mode;
 
-    // Update Tab Styles
     const tabJigsaw = document.getElementById('tab-jigsaw');
     const tabSudoku = document.getElementById('tab-sudoku');
+    const tabMemory = document.getElementById('tab-memory');
     const jigsawView = document.getElementById('view-jigsaw');
     const sudokuView = document.getElementById('view-sudoku');
+    const memoryView = document.getElementById('view-memory');
 
-    if (mode === 'jigsaw') {
-      tabJigsaw.className = 'flex-1 py-2 text-center text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-md transition-all';
-      tabSudoku.className = 'flex-1 py-2 text-center text-sm font-medium rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all';
-      jigsawView.classList.remove('hidden');
-      sudokuView.classList.add('hidden');
-    } else {
-      tabSudoku.className = 'flex-1 py-2 text-center text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-md transition-all';
-      tabJigsaw.className = 'flex-1 py-2 text-center text-sm font-medium rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all';
-      sudokuView.classList.remove('hidden');
-      jigsawView.classList.add('hidden');
-    }
+    const defaultTabClass = 'flex-1 py-2 text-center text-xs sm:text-sm font-medium rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1';
+    const activeTabClass = 'flex-1 py-2 text-center text-xs sm:text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-md transition-all flex items-center justify-center gap-1';
+
+    tabJigsaw.className = mode === 'jigsaw' ? activeTabClass : defaultTabClass;
+    tabSudoku.className = mode === 'sudoku' ? activeTabClass : defaultTabClass;
+    tabMemory.className = mode === 'memory' ? activeTabClass : defaultTabClass;
+
+    jigsawView.classList.toggle('hidden', mode !== 'jigsaw');
+    sudokuView.classList.toggle('hidden', mode !== 'sudoku');
+    memoryView.classList.toggle('hidden', mode !== 'memory');
 
     this.initGameMode(mode);
     this.startTimer();
   }
 
   initGameMode(mode) {
+    // Consume 1 Energy point for starting a challenge
+    this.storage.consumeEnergy(1);
+    this.updateEnergyUI();
+
     if (mode === 'jigsaw') {
       const container = document.getElementById('jigsaw-container');
       const diffSelect = document.getElementById('jigsaw-difficulty');
-      const gridSize = diffSelect ? parseInt(diffSelect.value, 10) : 3;
+      const gridSize = diffSelect ? parseInt(diffSelect.value, 10) : 4;
 
       this.jigsawEngine = new JigsawEngine(container, {
         rows: gridSize,
@@ -381,6 +496,24 @@ class App {
         onMove: () => {}
       });
       this.renderSudokuGrid();
+    } else if (mode === 'memory') {
+      const container = document.getElementById('memory-container');
+      const diffSelect = document.getElementById('memory-difficulty');
+      const difficulty = diffSelect ? diffSelect.value : 'medium';
+
+      this.memoryEngine = new MemoryEngine(container, {
+        difficulty,
+        dateSeed: this.storage.getTodayDateString(),
+        onCardFlip: () => this.playSound('card_flip'),
+        onMatch: () => {
+          this.playSound('match');
+          this.updateMemoryStatus();
+        },
+        onMismatch: () => this.playSound('mismatch'),
+        onWin: (data) => this.handleVictory('memory', data),
+        onMove: () => this.updateMemoryStatus()
+      });
+      this.updateMemoryStatus();
     }
   }
 
@@ -390,6 +523,19 @@ class App {
     const statusEl = document.getElementById('jigsaw-pieces-left');
     if (statusEl) {
       statusEl.textContent = this.i18n.t('piecesLeft', { count: remaining });
+    }
+  }
+
+  updateMemoryStatus() {
+    if (!this.memoryEngine) return;
+    const remaining = this.memoryEngine.getRemainingPairsCount();
+    const statusEl = document.getElementById('memory-pairs-left');
+    if (statusEl) {
+      statusEl.textContent = this.i18n.t('pairsLeft', { count: remaining });
+    }
+    const movesEl = document.getElementById('memory-moves');
+    if (movesEl) {
+      movesEl.textContent = this.memoryEngine.moves;
     }
   }
 
@@ -407,7 +553,6 @@ class App {
         const cell = document.createElement('div');
         cell.className = 'sudoku-cell';
 
-        // Add 3x3 horizontal dividers
         if (r === 2 || r === 5) {
           cell.classList.add('sudoku-row-divider');
         }
@@ -428,7 +573,6 @@ class App {
 
         if (isConflicted) cell.classList.add('error');
 
-        // Content: either digit or mini notes
         if (val !== 0) {
           cell.textContent = val;
         } else {
@@ -459,16 +603,18 @@ class App {
 
   handleHintRequested() {
     this.playSound('tap');
-    // Invoke Google H5 Rewarded Ad Placement
     this.ads.showRewardedHint({
       onRewardGranted: () => {
-        this.playSound('chime');
+        this.playSound('match');
         if (this.currentMode === 'jigsaw' && this.jigsawEngine) {
           this.jigsawEngine.applyHint();
           this.updateJigsawStatus();
         } else if (this.currentMode === 'sudoku' && this.sudokuEngine) {
           this.sudokuEngine.applyHint();
           this.renderSudokuGrid();
+        } else if (this.currentMode === 'memory' && this.memoryEngine) {
+          this.memoryEngine.applyHint();
+          this.updateMemoryStatus();
         }
         this.showToast(this.i18n.t('adRewardGranted'));
       },
@@ -483,12 +629,10 @@ class App {
     this.playSound('victory');
     this.launchConfetti();
 
-    // Record streak & stats
     const updatedStreak = this.storage.recordDailyCompletion(mode);
     this.storage.recordGameFinished(mode, this.secondsElapsed);
     this.updateStreakBadge();
 
-    // Show Victory Modal
     const modal = document.getElementById('modal-victory');
     const timeSummary = document.getElementById('victory-time');
     const streakSummary = document.getElementById('victory-streak');
@@ -503,7 +647,7 @@ class App {
 
     if (modal) modal.classList.remove('hidden');
 
-    // Trigger completion interstitial ad after small celebratory pause
+    // Trigger Interstitial Ad after 1.8s
     setTimeout(() => {
       this.ads.showInterstitial({
         name: `victory_${mode}`,
@@ -516,12 +660,12 @@ class App {
     const minutes = String(Math.floor(this.secondsElapsed / 60)).padStart(2, '0');
     const seconds = String(this.secondsElapsed % 60).padStart(2, '0');
     const streak = this.storage.getStreak().currentStreak;
-    const modeName = this.currentMode === 'jigsaw' ? '🧩 Daily Jigsaw' : '🔢 Daily Sudoku';
+    const modeName = this.currentMode === 'jigsaw' ? '🧩 每日拼圖' : (this.currentMode === 'sudoku' ? '🔢 每日數獨' : '🧠 記憶翻牌');
 
-    const shareText = `${modeName} Completed!\n⏱️ Time: ${minutes}:${seconds}\n🔥 Streak: ${streak} Days\nPlay free on H5 Web: ${window.location.href}`;
+    const shareText = `${modeName} 挑戰成功！\n⏱️ 耗時: ${minutes}:${seconds}\n🔥 連勝紀錄: ${streak} 天\n立即免費遊玩: ${window.location.href}`;
 
     if (navigator.share) {
-      navigator.share({ title: 'Daily Puzzles H5', text: shareText }).catch(() => {});
+      navigator.share({ title: '每日益智大挑戰', text: shareText }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareText).then(() => {
         this.showToast(this.i18n.t('copiedToClipboard'));
@@ -568,7 +712,7 @@ class App {
       for (const p of particles) {
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.25; // gravity
+        p.vy += 0.25;
         p.rotation += p.rSpeed;
 
         ctx.save();
@@ -589,7 +733,6 @@ class App {
   }
 }
 
-// Bootstrap once DOM ready
 window.addEventListener('DOMContentLoaded', () => {
   window.appInstance = new App();
 });

@@ -4,7 +4,7 @@
  * Ad networks and dynamic CDNs are passed through without caching.
  */
 
-const CACHE_NAME = 'daily-puzzle-h5-v1';
+const CACHE_NAME = 'daily-puzzle-h5-v2';
 
 const STATIC_ASSETS = [
   './',
@@ -14,6 +14,7 @@ const STATIC_ASSETS = [
   './src/app.js',
   './src/jigsaw.js',
   './src/sudoku.js',
+  './src/memory.js',
   './src/storage.js',
   './src/i18n.js',
   './src/ads.js',
@@ -58,7 +59,6 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Return cache immediately and revalidate in background
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
@@ -67,7 +67,6 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
 
-      // If not in cache, fetch from network and cache static file
       return fetch(event.request).then((networkResponse) => {
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="zh-TW" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Daily Puzzles & Sudoku | High-Yield H5 Game</title>
+  <title>每日益智大挑戰 | Daily Puzzles, Sudoku & Memory</title>
   
-  <!-- PWA & Meta -->
-  <meta name="description" content="Play free Daily Jigsaw and Daily Sudoku puzzles. Mobile-first H5 web game with daily streaks and brain challenges.">
+  <!-- PWA & SEO Meta -->
+  <meta name="description" content="免費遊玩每日拼圖、每日數獨與大腦記憶翻牌挑戰，支援手機離線遊玩、能量系統與每日連勝紀錄。">
   <meta name="theme-color" content="#0b0f19">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
@@ -32,10 +32,10 @@
     }
   </script>
 
-  <!-- Custom Styles -->
+  <!-- 自定義樣式表 -->
   <link rel="stylesheet" href="css/styles.css">
 
-  <!-- Google H5 Games Ad Placement API (Pre-configured placeholder) -->
+  <!-- Google H5 Games Ad Placement API (請將 ca-pub-placeholder 替換為您的正式發布商 ID) -->
   <script async data-ad-client="ca-pub-daily-h5-demo"
           data-ad-channel="daily_games"
           data-adbreak-test="on"
@@ -44,7 +44,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 flex flex-col min-h-screen">
 
-  <!-- TOP AD BANNER SAFE ZONE (CLS Protected) -->
+  <!-- 頂部廣告版位安全區 (固定高度避免 CLS 版面位移) -->
   <div class="w-full bg-slate-900/60 border-b border-slate-800/80 px-2 py-1.5 flex justify-center">
     <div class="ad-slot-container h-[50px] max-w-[468px] flex items-center justify-center">
       <span class="ad-slot-badge">Ad Safe Zone</span>
@@ -55,157 +55,190 @@
     </div>
   </div>
 
-  <!-- MAIN APP CONTAINER -->
+  <!-- 主遊戲容器 -->
   <main class="flex-1 flex flex-col max-w-md w-full mx-auto px-3 py-2">
     
-    <!-- HEADER BAR -->
+    <!-- 頂部功能列 -->
     <header class="flex items-center justify-between py-1 mb-2">
-      <!-- Title & Daily Streak -->
+      <!-- 標題與每日標籤 -->
       <div class="flex items-center gap-2">
         <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-lg shadow-md">
           🧩
         </div>
         <div>
           <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-            <span data-i18n="appTitle">Daily Puzzles</span>
-            <span class="text-[10px] bg-indigo-500/20 text-indigo-300 font-medium px-1.5 py-0.5 rounded-full border border-indigo-500/30" data-i18n="dailyBadge">Daily</span>
+            <span data-i18n="appTitle">每日益智挑戰</span>
+            <span class="text-[10px] bg-indigo-500/20 text-indigo-300 font-medium px-1.5 py-0.5 rounded-full border border-indigo-500/30" data-i18n="dailyBadge">每日特選</span>
           </h1>
         </div>
       </div>
 
-      <!-- Quick Action Controls -->
+      <!-- 快速操作按鈕 -->
       <div class="flex items-center gap-1.5">
-        <!-- Daily Streak Badge -->
-        <div class="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-xs font-bold text-amber-400 shadow-sm" title="Daily Streak">
-          <span class="text-sm animate-bounce">🔥</span>
+        <!-- ⚡ 能量體力儲蓄徽章 -->
+        <div id="energy-badge" class="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-full text-xs font-bold text-amber-300 shadow-sm cursor-pointer hover:bg-amber-500/20 transition-all" title="點擊補充能量">
+          <span class="text-sm">⚡</span>
+          <span id="energy-count">5/5</span>
+        </div>
+
+        <!-- 每日連勝徽章 -->
+        <div class="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-2 py-1 rounded-full text-xs font-bold text-amber-400 shadow-sm" title="每日連勝紀錄">
+          <span class="text-xs animate-bounce">🔥</span>
           <span id="streak-count">0</span>
         </div>
 
-        <!-- Language Dropdown -->
-        <select id="lang-select" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
-          <option value="en">EN</option>
+        <!-- 多語言切換下拉選單 -->
+        <select id="lang-select" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none">
           <option value="zh-TW">繁中</option>
+          <option value="en">EN</option>
           <option value="ja">日本語</option>
           <option value="de">DE</option>
           <option value="es">ES</option>
         </select>
 
-        <!-- Sound Toggle -->
-        <button id="btn-sound-toggle" class="w-7 h-7 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg flex items-center justify-center text-xs text-slate-300 active:scale-95 transition-all" title="Toggle Sound">
+        <!-- 音效開關按鈕 -->
+        <button id="btn-sound-toggle" class="w-7 h-7 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg flex items-center justify-center text-xs text-slate-300 active:scale-95 transition-all" title="開關音效">
           🔊
         </button>
 
-        <!-- Help / Rules Modal Button -->
-        <button id="btn-rules" class="w-7 h-7 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg flex items-center justify-center text-xs text-slate-300 active:scale-95 transition-all" title="Rules & Help">
+        <!-- 遊戲說明按鈕 -->
+        <button id="btn-rules" class="w-7 h-7 bg-slate-900 border border-slate-700 hover:bg-slate-800 rounded-lg flex items-center justify-center text-xs text-slate-300 active:scale-95 transition-all" title="規則與說明">
           ❓
         </button>
       </div>
     </header>
 
-    <!-- MODE SWITCHER TABS -->
+    <!-- 遊戲模式切換分頁 (3大益智模式) -->
     <div class="bg-slate-900/90 p-1 rounded-2xl border border-slate-800 flex gap-1 mb-3 shadow-inner">
-      <button id="tab-jigsaw" class="flex-1 py-2 text-center text-xs sm:text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-md transition-all flex items-center justify-center gap-1.5">
+      <button id="tab-jigsaw" class="flex-1 py-2 text-center text-xs sm:text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-md transition-all flex items-center justify-center gap-1">
         <span>🧩</span>
-        <span data-i18n="tabJigsaw">Daily Jigsaw</span>
+        <span data-i18n="tabJigsaw">每日拼圖</span>
       </button>
-      <button id="tab-sudoku" class="flex-1 py-2 text-center text-xs sm:text-sm font-medium rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5">
+      <button id="tab-sudoku" class="flex-1 py-2 text-center text-xs sm:text-sm font-medium rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1">
         <span>🔢</span>
-        <span data-i18n="tabSudoku">Daily Sudoku</span>
+        <span data-i18n="tabSudoku">每日數獨</span>
+      </button>
+      <button id="tab-memory" class="flex-1 py-2 text-center text-xs sm:text-sm font-medium rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1">
+        <span>🧠</span>
+        <span data-i18n="tabMemory">每日記憶</span>
       </button>
     </div>
 
-    <!-- COMMON STATUS BAR (Timer & Mode Controls) -->
+    <!-- 狀態資訊列 (計時器與激勵廣告提示按鈕) -->
     <div class="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-3 py-1.5 rounded-xl mb-3 text-xs">
-      <!-- Timer -->
       <div class="flex items-center gap-1 text-slate-400 font-mono">
         <span>⏱️</span>
         <span id="timer-display" class="font-bold text-slate-200">00:00</span>
       </div>
 
-      <!-- Rewarded Ad Hint CTA Button -->
+      <!-- 激勵型廣告提示按鈕 (Rewarded Ad CTA) -->
       <button id="btn-hint" class="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-95 text-slate-950 font-bold px-3 py-1 rounded-lg shadow-md shadow-amber-500/20 text-xs transition-all">
         <span>💡</span>
-        <span data-i18n="hintBtn">Hint (Ad)</span>
+        <span data-i18n="hintBtn">提示 (看廣告)</span>
       </button>
     </div>
 
-    <!-- VIEW 1: DAILY JIGSAW -->
+    <!-- 視圖 1: 每日拼圖 (Daily Jigsaw) -->
     <section id="view-jigsaw" class="flex flex-col flex-1">
-      <!-- Jigsaw Toolbar -->
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
-          <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">Diff:</label>
+          <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">難度:</label>
           <select id="jigsaw-difficulty" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1">
-            <option value="3" data-i18n="diffEasy">Easy (3x3)</option>
-            <option value="4" selected data-i18n="diffMedium">Medium (4x4)</option>
-            <option value="5" data-i18n="diffHard">Hard (5x5)</option>
+            <option value="3" data-i18n="diffEasy">簡單 (3x3)</option>
+            <option value="4" selected data-i18n="diffMedium">中等 (4x4)</option>
+            <option value="5" data-i18n="diffHard">困難 (5x5)</option>
           </select>
         </div>
         <div class="flex items-center gap-2">
           <button id="btn-jigsaw-preview" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="previewBtn">
-            Preview
+            預覽原圖
           </button>
           <button id="btn-jigsaw-reset" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="resetBtn">
-            Reset
+            重置
           </button>
         </div>
       </div>
 
-      <!-- Pieces Remaining Indicator -->
       <div class="text-center text-[11px] text-indigo-300 font-medium mb-1" id="jigsaw-pieces-left">
-        Pieces left: 16
+        剩餘拼圖：16
       </div>
 
-      <!-- Jigsaw Canvas & Piece Tray Container -->
       <div id="jigsaw-container" class="flex-1 flex flex-col justify-center"></div>
     </section>
 
-    <!-- VIEW 2: DAILY SUDOKU -->
+    <!-- 視圖 2: 每日數獨 (Daily Sudoku) -->
     <section id="view-sudoku" class="flex flex-col flex-1 hidden">
-      <!-- Sudoku Toolbar -->
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
-          <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">Diff:</label>
+          <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">難度:</label>
           <select id="sudoku-difficulty" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1">
-            <option value="easy" data-i18n="diffEasy">Easy</option>
-            <option value="medium" selected data-i18n="diffMedium">Medium</option>
-            <option value="hard" data-i18n="diffHard">Hard</option>
-            <option value="expert" data-i18n="diffExpert">Expert</option>
+            <option value="easy" data-i18n="diffEasy">簡單</option>
+            <option value="medium" selected data-i18n="diffMedium">中等</option>
+            <option value="hard" data-i18n="diffHard">困難</option>
+            <option value="expert" data-i18n="diffExpert">大師</option>
           </select>
         </div>
-        <!-- Mistakes Indicator -->
         <div class="flex items-center gap-1 text-xs text-rose-400 font-medium">
-          <span data-i18n="mistakes">Mistakes:</span>
+          <span data-i18n="mistakes">失誤:</span>
           <span id="sudoku-mistakes" class="font-bold">0/3</span>
         </div>
       </div>
 
-      <!-- 9x9 Sudoku Board -->
+      <!-- 9x9 數獨棋盤 -->
       <div id="sudoku-board" class="sudoku-grid mb-3"></div>
 
-      <!-- Sudoku Action Bar (Undo, Erase, Notes) -->
+      <!-- 數獨控制列 (撤銷、擦除、筆記) -->
       <div class="flex justify-center gap-3 mb-3">
         <button id="btn-sudoku-undo" class="flex-1 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 rounded-xl text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5">
           <span>↩️</span>
-          <span data-i18n="undoBtn">Undo</span>
+          <span data-i18n="undoBtn">撤銷</span>
         </button>
         <button id="btn-sudoku-erase" class="flex-1 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 rounded-xl text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5">
           <span>🧹</span>
-          <span data-i18n="eraseBtn">Erase</span>
+          <span data-i18n="eraseBtn">擦除</span>
         </button>
         <button id="btn-sudoku-notes" class="flex-1 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 active:scale-95 rounded-xl text-xs font-medium text-slate-200 flex items-center justify-center gap-1.5">
           <span>✏️</span>
-          <span data-i18n="notesBtn">Notes</span>
+          <span data-i18n="notesBtn">筆記</span>
         </button>
       </div>
 
-      <!-- Numeric Keypad (1 - 9) -->
+      <!-- 數字鍵盤 1 - 9 -->
       <div id="sudoku-keypad" class="flex justify-between items-center gap-1 px-1"></div>
+    </section>
+
+    <!-- 視圖 3: 每日記憶翻牌 (Daily Memory Training) -->
+    <section id="view-memory" class="flex flex-col flex-1 hidden">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">難度:</label>
+          <select id="memory-difficulty" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1">
+            <option value="easy" data-i18n="diffEasy">簡單 (12張)</option>
+            <option value="medium" selected data-i18n="diffMedium">中等 (16張)</option>
+            <option value="hard" data-i18n="diffHard">困難 (20張)</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-xs text-slate-400">
+            <span data-i18n="moves">步數:</span> <span id="memory-moves" class="font-bold text-indigo-400">0</span>
+          </div>
+          <button id="btn-memory-reset" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="resetBtn">
+            重置
+          </button>
+        </div>
+      </div>
+
+      <div class="text-center text-[11px] text-indigo-300 font-medium mb-2" id="memory-pairs-left">
+        剩餘配對：8
+      </div>
+
+      <!-- 記憶翻牌卡片容器 -->
+      <div id="memory-container" class="flex-1 flex flex-col justify-center"></div>
     </section>
 
   </main>
 
-  <!-- BOTTOM AD SAFE ZONE (CLS Protected) -->
+  <!-- 底部廣告版位安全區 -->
   <div class="w-full bg-slate-900/60 border-t border-slate-800/80 px-2 py-1.5 flex justify-center mt-auto">
     <div class="ad-slot-container h-[50px] max-w-[468px] flex items-center justify-center">
       <span class="ad-slot-badge">Ad Safe Zone</span>
@@ -216,45 +249,73 @@
     </div>
   </div>
 
-  <!-- VICTORY CELEBRATION MODAL -->
-  <div id="modal-victory" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-slate-900 border border-indigo-500/50 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-pop">
-      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg shadow-amber-500/30">
-        🏆
+  <!-- ⚡ 能量體力補充彈窗 -->
+  <div id="modal-energy" class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-amber-500/50 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-pop">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-500 flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg shadow-amber-500/30 animate-pulse">
+        ⚡
       </div>
-      <h2 class="text-xl font-extrabold text-white mb-1" data-i18n="congratsTitle">Puzzle Solved!</h2>
-      <p class="text-xs text-slate-300 mb-4" data-i18n="congratsDesc">Outstanding! You completed today's challenge.</p>
+      <h2 class="text-xl font-extrabold text-white mb-1" data-i18n="energyModalTitle">⚡ 能量已耗盡</h2>
+      <p class="text-xs text-slate-300 mb-4" data-i18n="energyModalDesc">進行每局遊戲需要消耗 1 點能量。您可以觀看贊助商影片立即恢復 3 點能量！</p>
 
-      <div class="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 mb-5 flex justify-around">
-        <div>
-          <div class="text-[10px] text-slate-400 uppercase font-semibold" data-i18n="time">Time</div>
-          <div id="victory-time" class="text-base font-bold text-indigo-400 font-mono">00:00</div>
-        </div>
-        <div class="border-r border-slate-800"></div>
-        <div>
-          <div class="text-[10px] text-slate-400 uppercase font-semibold" data-i18n="streak">Streak</div>
-          <div id="victory-streak" class="text-base font-bold text-amber-400">1 Day 🔥</div>
+      <div class="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 mb-5">
+        <div class="text-[11px] text-slate-400">
+          <span>⏳ 下一點能量自動恢復：</span>
+          <span id="energy-recharge-timer" class="font-bold text-amber-400 font-mono">10:00</span>
         </div>
       </div>
 
       <div class="flex flex-col gap-2">
-        <button id="btn-victory-share" class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/30 active:scale-95 transition-all" data-i18n="shareBtn">
-          Share Result 🚀
+        <!-- 觀看廣告立即補體力按鈕 -->
+        <button id="btn-watch-ad-energy" class="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-extrabold rounded-xl text-xs shadow-lg shadow-amber-500/30 active:scale-95 transition-all" data-i18n="watchAdForEnergy">
+          觀看廣告獲取 +3 能量 ⚡
         </button>
-        <button id="btn-victory-next" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-xs active:scale-95 transition-all">
-          Continue & Next Challenge
+        <button id="btn-close-energy" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-xs active:scale-95 transition-all">
+          稍後再玩
         </button>
       </div>
     </div>
   </div>
 
-  <!-- RULES & SETTINGS MODAL -->
+  <!-- 通關勝利賀采彈窗 -->
+  <div id="modal-victory" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-indigo-500/50 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-pop">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg shadow-amber-500/30">
+        🏆
+      </div>
+      <h2 class="text-xl font-extrabold text-white mb-1" data-i18n="congratsTitle">恭喜通關！</h2>
+      <p class="text-xs text-slate-300 mb-4" data-i18n="congratsDesc">太厲害了！你順利完成了今天的益智挑戰。</p>
+
+      <div class="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 mb-5 flex justify-around">
+        <div>
+          <div class="text-[10px] text-slate-400 uppercase font-semibold" data-i18n="time">時間</div>
+          <div id="victory-time" class="text-base font-bold text-indigo-400 font-mono">00:00</div>
+        </div>
+        <div class="border-r border-slate-800"></div>
+        <div>
+          <div class="text-[10px] text-slate-400 uppercase font-semibold" data-i18n="streak">連勝紀錄</div>
+          <div id="victory-streak" class="text-base font-bold text-amber-400">1 天 🔥</div>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button id="btn-victory-share" class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/30 active:scale-95 transition-all" data-i18n="shareBtn">
+          分享成績 🚀
+        </button>
+        <button id="btn-victory-next" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-xs active:scale-95 transition-all">
+          繼續下一個挑戰
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 遊戲規則與設置彈窗 -->
   <div id="modal-rules" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 text-left shadow-2xl relative animate-pop">
       <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
         <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
           <span>📖</span>
-          <span data-i18n="settingsTitle">Settings & Rules</span>
+          <span data-i18n="settingsTitle">遊戲說明與規則</span>
         </h3>
         <button id="btn-close-rules" class="text-slate-400 hover:text-white text-lg font-bold">×</button>
       </div>
@@ -263,38 +324,46 @@
         <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
           <div class="font-semibold text-indigo-300 mb-1 flex items-center gap-1">
             <span>🧩</span>
-            <span data-i18n="tabJigsaw">Daily Jigsaw</span>
+            <span data-i18n="tabJigsaw">每日拼圖</span>
           </div>
-          <p data-i18n="rulesJigsaw">Drag puzzle pieces onto the board. Pieces snap automatically when placed close to their correct target.</p>
+          <p data-i18n="rulesJigsaw">將拼圖片段拖曳到正確位置。靠近目標時會自動磁吸就位。</p>
         </div>
 
         <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
           <div class="font-semibold text-indigo-300 mb-1 flex items-center gap-1">
             <span>🔢</span>
-            <span data-i18n="tabSudoku">Daily Sudoku</span>
+            <span data-i18n="tabSudoku">每日數獨</span>
           </div>
-          <p data-i18n="rulesSudoku">Fill the 9x9 grid so every row, column, and 3x3 box contains digits 1 to 9 without repeats.</p>
+          <p data-i18n="rulesSudoku">在 9x9 方格內填入 1 至 9 的數字，確保每行、每列及每個九宮格內數字不重複。</p>
+        </div>
+
+        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+          <div class="font-semibold text-indigo-300 mb-1 flex items-center gap-1">
+            <span>🧠</span>
+            <span data-i18n="tabMemory">每日記憶</span>
+          </div>
+          <p data-i18n="rulesMemory">翻開卡牌尋找兩兩成對的符號，運用大腦記憶力以最少步數配對全部卡牌。</p>
         </div>
       </div>
 
       <button onclick="document.getElementById('modal-rules').classList.add('hidden')" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl text-xs active:scale-95 transition-all" data-i18n="close">
-        Close
+        關閉
       </button>
     </div>
   </div>
 
-  <!-- PWA Service Worker Registration -->
+  <!-- PWA Service Worker 註冊 -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
-          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+          .then(reg => console.log('[PWA] Service Worker 註冊成功:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker 註冊失敗:', err));
       });
     }
   </script>
 
-  <!-- Application Bootstrap -->
+  <!-- 應用程式啟動 -->
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

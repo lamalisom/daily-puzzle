@@ -1,20 +1,22 @@
 /**
  * storage.js - LocalStorage manager for High-Yield H5 Web Game
- * Handles streak tracking, game state persistence, audio/settings, and user stats.
+ * Handles streak tracking, game state persistence, audio/settings, energy system, and user stats.
  */
 
 const STORAGE_KEYS = {
   SETTINGS: 'h5_daily_settings',
   STREAK: 'h5_daily_streak',
+  ENERGY: 'h5_daily_energy',
   JIGSAW_STATE: 'h5_daily_jigsaw_state',
   SUDOKU_STATE: 'h5_daily_sudoku_state',
+  MEMORY_STATE: 'h5_daily_memory_state',
   STATS: 'h5_daily_stats'
 };
 
+const MAX_ENERGY = 5;
+const RECHARGE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes per energy point
+
 export const StorageManager = {
-  /**
-   * Get formatted local date string 'YYYY-MM-DD'
-   */
   getTodayDateString() {
     const now = new Date();
     const year = now.getFullYear();
@@ -23,9 +25,6 @@ export const StorageManager = {
     return `${year}-${month}-${day}`;
   },
 
-  /**
-   * Get date string for yesterday 'YYYY-MM-DD'
-   */
   getYesterdayDateString() {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -36,7 +35,62 @@ export const StorageManager = {
   },
 
   /**
-   * Settings (Language, Sound FX, Haptics)
+   * Energy / Stamina Management
+   */
+  getEnergyData() {
+    try {
+      const now = Date.now();
+      const saved = localStorage.getItem(STORAGE_KEYS.ENERGY);
+      if (!saved) {
+        const initial = { energy: MAX_ENERGY, lastUpdate: now };
+        localStorage.setItem(STORAGE_KEYS.ENERGY, JSON.stringify(initial));
+        return { ...initial, nextRechargeMs: 0, maxEnergy: MAX_ENERGY };
+      }
+
+      const data = JSON.parse(saved);
+      let { energy, lastUpdate } = data;
+
+      // Calculate offline auto-recharge
+      if (energy < MAX_ENERGY) {
+        const elapsed = now - lastUpdate;
+        const pointsToAdd = Math.floor(elapsed / RECHARGE_INTERVAL_MS);
+        if (pointsToAdd > 0) {
+          energy = Math.min(MAX_ENERGY, energy + pointsToAdd);
+          lastUpdate = energy === MAX_ENERGY ? now : lastUpdate + pointsToAdd * RECHARGE_INTERVAL_MS;
+          localStorage.setItem(STORAGE_KEYS.ENERGY, JSON.stringify({ energy, lastUpdate }));
+        }
+      }
+
+      const nextRechargeMs = energy < MAX_ENERGY ? Math.max(0, RECHARGE_INTERVAL_MS - (now - lastUpdate)) : 0;
+      return { energy, lastUpdate, nextRechargeMs, maxEnergy: MAX_ENERGY };
+    } catch (e) {
+      console.warn('StorageManager.getEnergyData error:', e);
+      return { energy: MAX_ENERGY, lastUpdate: Date.now(), nextRechargeMs: 0, maxEnergy: MAX_ENERGY };
+    }
+  },
+
+  consumeEnergy(amount = 1) {
+    const data = this.getEnergyData();
+    if (data.energy < amount) {
+      return false; // Not enough energy
+    }
+
+    const newEnergy = data.energy - amount;
+    const lastUpdate = data.energy === MAX_ENERGY ? Date.now() : data.lastUpdate;
+    localStorage.setItem(STORAGE_KEYS.ENERGY, JSON.stringify({ energy: newEnergy, lastUpdate }));
+    return true;
+  },
+
+  addEnergy(amount = 3) {
+    const data = this.getEnergyData();
+    const newEnergy = Math.min(MAX_ENERGY, data.energy + amount);
+    const lastUpdate = newEnergy >= MAX_ENERGY ? Date.now() : data.lastUpdate;
+    localStorage.setItem(STORAGE_KEYS.ENERGY, JSON.stringify({ energy: newEnergy, lastUpdate }));
+    return this.getEnergyData();
+  },
+
+  /**
+   * User Settings
    */
   getSettings() {
     try {
@@ -46,14 +100,14 @@ export const StorageManager = {
         lang: navigator.language ? (navigator.language.toLowerCase().startsWith('zh') ? 'zh-TW' : 
                                    navigator.language.toLowerCase().startsWith('ja') ? 'ja' :
                                    navigator.language.toLowerCase().startsWith('de') ? 'de' :
-                                   navigator.language.toLowerCase().startsWith('es') ? 'es' : 'en') : 'en',
+                                   navigator.language.toLowerCase().startsWith('es') ? 'es' : 'zh-TW') : 'zh-TW',
         vibrate: true,
         highlightErrors: true
       };
       return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     } catch (e) {
       console.warn('StorageManager.getSettings error:', e);
-      return { sound: true, lang: 'en', vibrate: true, highlightErrors: true };
+      return { sound: true, lang: 'zh-TW', vibrate: true, highlightErrors: true };
     }
   },
 
@@ -70,7 +124,7 @@ export const StorageManager = {
   },
 
   /**
-   * Daily Streak & History Tracking
+   * Daily Streak & Completion History
    */
   getStreak() {
     try {
@@ -82,13 +136,12 @@ export const StorageManager = {
         currentStreak: 0,
         maxStreak: 0,
         lastCompletedDate: null,
-        history: {} // date: { jigsaw: boolean, sudoku: boolean }
+        history: {}
       };
 
       if (!saved) return defaults;
       const data = { ...defaults, ...JSON.parse(saved) };
 
-      // Verify if streak was broken (missed yesterday and today not finished)
       if (data.lastCompletedDate && data.lastCompletedDate !== today && data.lastCompletedDate !== yesterday) {
         data.currentStreak = 0;
       }
@@ -107,12 +160,11 @@ export const StorageManager = {
       const yesterday = this.getYesterdayDateString();
 
       if (!streakData.history[today]) {
-        streakData.history[today] = { jigsaw: false, sudoku: false };
+        streakData.history[today] = { jigsaw: false, sudoku: false, memory: false };
       }
 
       streakData.history[today][gameType] = true;
 
-      // Check if at least one daily game mode was finished today for streak
       if (streakData.lastCompletedDate !== today) {
         if (streakData.lastCompletedDate === yesterday) {
           streakData.currentStreak += 1;
@@ -135,50 +187,7 @@ export const StorageManager = {
   },
 
   /**
-   * Active Game State Auto-Save & Recovery
-   */
-  saveGameState(gameType, state) {
-    try {
-      const key = gameType === 'jigsaw' ? STORAGE_KEYS.JIGSAW_STATE : STORAGE_KEYS.SUDOKU_STATE;
-      localStorage.setItem(key, JSON.stringify({
-        savedAt: Date.now(),
-        date: this.getTodayDateString(),
-        state
-      }));
-    } catch (e) {
-      console.warn(`StorageManager.saveGameState(${gameType}) error:`, e);
-    }
-  },
-
-  loadGameState(gameType) {
-    try {
-      const key = gameType === 'jigsaw' ? STORAGE_KEYS.JIGSAW_STATE : STORAGE_KEYS.SUDOKU_STATE;
-      const saved = localStorage.getItem(key);
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      // Auto-expire game state if from a previous day
-      if (parsed.date !== this.getTodayDateString()) {
-        localStorage.removeItem(key);
-        return null;
-      }
-      return parsed.state;
-    } catch (e) {
-      console.warn(`StorageManager.loadGameState(${gameType}) error:`, e);
-      return null;
-    }
-  },
-
-  clearGameState(gameType) {
-    try {
-      const key = gameType === 'jigsaw' ? STORAGE_KEYS.JIGSAW_STATE : STORAGE_KEYS.SUDOKU_STATE;
-      localStorage.removeItem(key);
-    } catch (e) {
-      console.warn(`StorageManager.clearGameState(${gameType}) error:`, e);
-    }
-  },
-
-  /**
-   * Overall Player Statistics
+   * Stats
    */
   getStats() {
     try {
@@ -189,11 +198,14 @@ export const StorageManager = {
         jigsawBestTime: null,
         sudokuPlayed: 0,
         sudokuWon: 0,
-        sudokuBestTime: null
+        sudokuBestTime: null,
+        memoryPlayed: 0,
+        memoryWon: 0,
+        memoryBestTime: null
       };
       return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     } catch (e) {
-      return { jigsawPlayed: 0, jigsawWon: 0, jigsawBestTime: null, sudokuPlayed: 0, sudokuWon: 0, sudokuBestTime: null };
+      return { jigsawPlayed: 0, jigsawWon: 0, jigsawBestTime: null, sudokuPlayed: 0, sudokuWon: 0, sudokuBestTime: null, memoryPlayed: 0, memoryWon: 0, memoryBestTime: null };
     }
   },
 
@@ -211,6 +223,12 @@ export const StorageManager = {
         stats.sudokuWon += 1;
         if (!stats.sudokuBestTime || timeSeconds < stats.sudokuBestTime) {
           stats.sudokuBestTime = timeSeconds;
+        }
+      } else if (gameType === 'memory') {
+        stats.memoryPlayed += 1;
+        stats.memoryWon += 1;
+        if (!stats.memoryBestTime || timeSeconds < stats.memoryBestTime) {
+          stats.memoryBestTime = timeSeconds;
         }
       }
       localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));

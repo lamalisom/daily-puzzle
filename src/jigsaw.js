@@ -1,17 +1,19 @@
 /**
  * jigsaw.js - Lightweight Canvas Jigsaw Engine
- * Features:
- * - Procedural date-seeded dynamic artwork generator (no external heavy assets needed)
+ * Optimized for Mobile & iPad:
+ * - Full PointerEvent & TouchEvent compatibility with setPointerCapture
+ * - Prevents DOM node removal during touch (fixes iPad Safari touchcancel bug)
+ * - Dual Interaction: Drag-and-Drop + Tap-to-Select & Tap-to-Place
+ * - Procedural date-seeded dynamic artwork generator
  * - Authentic interlocking bezier jigsaw tabs and blanks
- * - Multi-touch & pointer drag-and-drop with magnetic grid snapping
  * - Ghost image preview toggle, Hint assistant, and victory detection
  */
 
 export class JigsawEngine {
   constructor(canvasContainer, options = {}) {
     this.container = canvasContainer;
-    this.rows = options.rows || 3;
-    this.cols = options.cols || 3;
+    this.rows = options.rows || 4;
+    this.cols = options.cols || 4;
     this.dateSeed = options.dateSeed || new Date().toISOString().slice(0, 10);
     this.onPieceSnapped = options.onPieceSnapped || (() => {});
     this.onWin = options.onWin || (() => {});
@@ -24,6 +26,9 @@ export class JigsawEngine {
 
     this.pieces = [];
     this.activePiece = null;
+    this.selectedTrayPiece = null;
+    this.activeDragBtn = null;
+    this.dragStartPos = { x: 0, y: 0 };
     this.dragOffset = { x: 0, y: 0 };
     this.showGhost = false;
 
@@ -41,12 +46,10 @@ export class JigsawEngine {
     this.container.innerHTML = '';
     this.container.className = 'relative flex flex-col items-center select-none w-full max-w-md mx-auto';
 
-    // Game Board Area
     this.boardEl = document.createElement('div');
-    this.boardEl.className = 'relative w-[340px] h-[340px] sm:w-[360px] sm:h-[360px] bg-slate-900/90 rounded-2xl border-2 border-dashed border-indigo-500/40 shadow-inner overflow-hidden';
+    this.boardEl.className = 'relative w-[340px] h-[340px] sm:w-[360px] sm:h-[360px] bg-slate-900/90 rounded-2xl border-2 border-dashed border-indigo-500/40 shadow-inner overflow-hidden cursor-pointer';
     this.boardEl.style.touchAction = 'none';
 
-    // Ghost background image
     this.ghostEl = document.createElement('canvas');
     this.ghostEl.width = 360;
     this.ghostEl.height = 360;
@@ -54,7 +57,6 @@ export class JigsawEngine {
     this.ghostEl.style.display = 'none';
     this.boardEl.appendChild(this.ghostEl);
 
-    // Board Base Canvas (for snapped pieces)
     this.boardCanvas = document.createElement('canvas');
     this.boardCanvas.width = 360;
     this.boardCanvas.height = 360;
@@ -62,26 +64,22 @@ export class JigsawEngine {
     this.boardCtx = this.boardCanvas.getContext('2d');
     this.boardEl.appendChild(this.boardCanvas);
 
-    // Dynamic Interaction Layer
     this.interactiveCanvas = document.createElement('canvas');
     this.interactiveCanvas.width = 360;
     this.interactiveCanvas.height = 360;
     this.interactiveCanvas.className = 'absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing';
+    this.interactiveCanvas.style.touchAction = 'none';
     this.interactiveCtx = this.interactiveCanvas.getContext('2d');
     this.boardEl.appendChild(this.interactiveCanvas);
 
     this.container.appendChild(this.boardEl);
 
-    // Piece Tray Area below board
     this.trayEl = document.createElement('div');
     this.trayEl.className = 'w-full mt-3 p-2 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-wrap gap-2 justify-center items-center min-h-[90px] max-h-[140px] overflow-y-auto';
     this.trayEl.id = 'jigsaw-tray';
     this.container.appendChild(this.trayEl);
   }
 
-  /**
-   * Deterministic PRNG seeded by Date string for consistent daily puzzles
-   */
   getSeededRandom(seedStr) {
     let hash = 0;
     for (let i = 0; i < seedStr.length; i++) {
@@ -95,9 +93,6 @@ export class JigsawEngine {
     };
   }
 
-  /**
-   * Generates procedurally crafted vivid artwork for today
-   */
   generateArtwork() {
     const ctx = this.imageCanvas.getContext('2d');
     const rng = this.getSeededRandom(this.dateSeed);
@@ -112,7 +107,6 @@ export class JigsawEngine {
     const themeIndex = Math.floor(rng() * themes.length);
     const theme = themes[themeIndex];
 
-    // Sky gradient
     const sky = ctx.createLinearGradient(0, 0, 0, 600);
     sky.addColorStop(0, theme.top);
     sky.addColorStop(0.55, theme.mid);
@@ -120,19 +114,16 @@ export class JigsawEngine {
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, 600, 600);
 
-    // Sun / Moon / Celestial Body
     ctx.fillStyle = theme.sun;
     ctx.beginPath();
     ctx.arc(300, 220, 85, 0, Math.PI * 2);
     ctx.fill();
 
-    // Soft celestial glow
     ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.beginPath();
     ctx.arc(300, 220, 130, 0, Math.PI * 2);
     ctx.fill();
 
-    // Mountain silhouettes
     const drawMountainRange = (color, baseY, peakMin, peakMax, steps) => {
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -153,7 +144,6 @@ export class JigsawEngine {
     drawMountainRange('rgba(15, 23, 42, 0.75)', 490, 70, 140, 6);
     drawMountainRange('#020617', 560, 50, 100, 7);
 
-    // Forest / Pine Trees detail along foreground
     ctx.fillStyle = '#020617';
     for (let x = 10; x < 600; x += 18 + rng() * 12) {
       const treeH = 35 + rng() * 45;
@@ -166,7 +156,6 @@ export class JigsawEngine {
       ctx.fill();
     }
 
-    // Stars / Sparkles
     ctx.fillStyle = '#ffffff';
     for (let s = 0; s < 35; s++) {
       const sx = rng() * 600;
@@ -177,7 +166,6 @@ export class JigsawEngine {
       ctx.fill();
     }
 
-    // Update ghost preview
     const ghostCtx = this.ghostEl.getContext('2d');
     ghostCtx.drawImage(this.imageCanvas, 0, 0, 360, 360);
   }
@@ -187,6 +175,8 @@ export class JigsawEngine {
     this.cols = gridSize;
     this.pieceWidth = this.boardWidth / this.cols;
     this.pieceHeight = this.boardHeight / this.rows;
+    this.selectedTrayPiece = null;
+    this.activePiece = null;
     this.buildPuzzle();
   }
 
@@ -194,8 +184,6 @@ export class JigsawEngine {
     this.pieces = [];
     const rng = this.getSeededRandom(this.dateSeed + `_g${this.rows}`);
 
-    // Generate edge tabs/blanks matrix
-    // horizontalEdges[row][col] is the edge between piece(row, col) and piece(row, col+1)
     const horizontalEdges = [];
     for (let r = 0; r < this.rows; r++) {
       horizontalEdges[r] = [];
@@ -204,7 +192,6 @@ export class JigsawEngine {
       }
     }
 
-    // verticalEdges[row][col] is the edge between piece(row, col) and piece(row+1, col)
     const verticalEdges = [];
     for (let r = 0; r < this.rows - 1; r++) {
       verticalEdges[r] = [];
@@ -239,7 +226,6 @@ export class JigsawEngine {
       }
     }
 
-    // Shuffle tray order
     this.shufflePieces(rng);
     this.renderBoard();
     this.renderTray();
@@ -253,15 +239,11 @@ export class JigsawEngine {
     }
   }
 
-  /**
-   * Draws a jigsaw piece interlocking path
-   */
   drawPiecePath(ctx, x, y, w, h, edges) {
     const tabRadius = Math.min(w, h) * 0.2;
     ctx.beginPath();
     ctx.moveTo(x, y);
 
-    // Top Edge
     if (edges.top === 0) {
       ctx.lineTo(x + w, y);
     } else {
@@ -275,7 +257,6 @@ export class JigsawEngine {
       ctx.lineTo(x + w, y);
     }
 
-    // Right Edge
     if (edges.right === 0) {
       ctx.lineTo(x + w, y + h);
     } else {
@@ -289,7 +270,6 @@ export class JigsawEngine {
       ctx.lineTo(x + w, y + h);
     }
 
-    // Bottom Edge
     if (edges.bottom === 0) {
       ctx.lineTo(x, y + h);
     } else {
@@ -303,7 +283,6 @@ export class JigsawEngine {
       ctx.lineTo(x, y + h);
     }
 
-    // Left Edge
     if (edges.left === 0) {
       ctx.lineTo(x, y);
     } else {
@@ -319,9 +298,6 @@ export class JigsawEngine {
     ctx.closePath();
   }
 
-  /**
-   * Render piece onto a standalone mini-canvas (used for tray buttons)
-   */
   createPiecePreviewCanvas(piece, previewSize = 64) {
     const canvas = document.createElement('canvas');
     canvas.width = previewSize;
@@ -336,7 +312,6 @@ export class JigsawEngine {
     this.drawPiecePath(ctx, padding, padding, drawW, drawH, piece.edges);
     ctx.clip();
 
-    // Source coordinates on source image
     const srcX = (piece.col / this.cols) * this.imageCanvas.width;
     const srcY = (piece.row / this.rows) * this.imageCanvas.height;
     const srcW = this.imageCanvas.width / this.cols;
@@ -345,7 +320,6 @@ export class JigsawEngine {
     ctx.drawImage(this.imageCanvas, srcX, srcY, srcW, srcH, padding, padding, drawW, drawH);
     ctx.restore();
 
-    // Stroke border
     ctx.save();
     this.drawPiecePath(ctx, padding, padding, drawW, drawH, piece.edges);
     ctx.lineWidth = 1.5;
@@ -358,7 +332,6 @@ export class JigsawEngine {
 
   renderBoard() {
     this.boardCtx.clearRect(0, 0, this.boardWidth, this.boardHeight);
-    // Draw all snapped pieces
     for (const piece of this.pieces) {
       if (piece.snapped) {
         this.boardCtx.save();
@@ -373,7 +346,6 @@ export class JigsawEngine {
         this.boardCtx.drawImage(this.imageCanvas, srcX, srcY, srcW, srcH, piece.targetX, piece.targetY, this.pieceWidth, this.pieceHeight);
         this.boardCtx.restore();
 
-        // Subtle piece border
         this.boardCtx.save();
         this.drawPiecePath(this.boardCtx, piece.targetX, piece.targetY, this.pieceWidth, this.pieceHeight, piece.edges);
         this.boardCtx.lineWidth = 1;
@@ -386,16 +358,23 @@ export class JigsawEngine {
 
   renderInteractive() {
     this.interactiveCtx.clearRect(0, 0, this.boardWidth, this.boardHeight);
-    // Render piece currently being dragged
-    if (this.activePiece && !this.activePiece.snapped) {
-      const piece = this.activePiece;
-      const x = piece.currentX;
-      const y = piece.currentY;
+
+    const piece = this.activePiece || this.selectedTrayPiece;
+    if (piece && !piece.snapped) {
+      const x = piece.currentX ?? piece.targetX;
+      const y = piece.currentY ?? piece.targetY;
 
       this.interactiveCtx.save();
-      // Drop shadow for tactile 3D effect
+      this.drawPiecePath(this.interactiveCtx, piece.targetX, piece.targetY, this.pieceWidth, this.pieceHeight, piece.edges);
+      this.interactiveCtx.lineWidth = 2;
+      this.interactiveCtx.setLineDash([4, 4]);
+      this.interactiveCtx.strokeStyle = '#f59e0b';
+      this.interactiveCtx.stroke();
+      this.interactiveCtx.restore();
+
+      this.interactiveCtx.save();
       this.interactiveCtx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-      this.interactiveCtx.shadowBlur = 16;
+      this.interactiveCtx.shadowBlur = 18;
       this.interactiveCtx.shadowOffsetX = 4;
       this.interactiveCtx.shadowOffsetY = 8;
 
@@ -416,7 +395,6 @@ export class JigsawEngine {
       this.interactiveCtx.drawImage(this.imageCanvas, srcX, srcY, srcW, srcH, x, y, this.pieceWidth, this.pieceHeight);
       this.interactiveCtx.restore();
 
-      // Border glow
       this.interactiveCtx.save();
       this.drawPiecePath(this.interactiveCtx, x, y, this.pieceWidth, this.pieceHeight, piece.edges);
       this.interactiveCtx.lineWidth = 2.5;
@@ -431,100 +409,176 @@ export class JigsawEngine {
     const unsnapped = this.pieces.filter(p => !p.snapped && p.inTray);
 
     if (unsnapped.length === 0) {
-      this.trayEl.innerHTML = `<span class="text-xs text-emerald-400 font-medium py-3">All pieces placed! 🎉</span>`;
+      this.trayEl.innerHTML = `<span class="text-xs text-emerald-400 font-medium py-3">所有拼圖已就位！ 🎉</span>`;
       return;
     }
 
     unsnapped.forEach(piece => {
+      const isSelected = this.selectedTrayPiece && this.selectedTrayPiece.id === piece.id;
       const itemBtn = document.createElement('button');
-      itemBtn.className = 'p-1 bg-slate-900 border border-slate-700/80 hover:border-indigo-500 rounded-lg transition-transform active:scale-95 shadow-sm';
-      itemBtn.title = 'Drag or tap to place';
+      itemBtn.className = `p-1 bg-slate-900 border rounded-lg transition-transform active:scale-95 shadow-sm ${isSelected ? 'border-amber-400 ring-2 ring-amber-400/60 scale-105' : 'border-slate-700/80 hover:border-indigo-500'}`;
+      itemBtn.style.touchAction = 'none';
+      itemBtn.dataset.pieceId = piece.id;
+      itemBtn.title = '拖曳或點選以放置';
 
       const previewCanvas = this.createPiecePreviewCanvas(piece, 56);
       itemBtn.appendChild(previewCanvas);
 
-      // Start dragging from tray onto board
-      itemBtn.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        this.selectPieceForDrag(piece, e);
-      });
+      const onStart = (e) => {
+        if (e.cancelable) e.preventDefault();
+        const clientX = e.clientX ?? (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        const clientY = e.clientY ?? (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
 
+        this.dragStartPos = { x: clientX, y: clientY };
+        this.activeDragBtn = itemBtn;
+        this.startDrag(piece, clientX, clientY);
+
+        if (e.pointerId && itemBtn.setPointerCapture) {
+          try { itemBtn.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+      };
+
+      itemBtn.addEventListener('pointerdown', onStart);
       this.trayEl.appendChild(itemBtn);
     });
   }
 
-  selectPieceForDrag(piece, e) {
+  startDrag(piece, clientX, clientY) {
     const rect = this.interactiveCanvas.getBoundingClientRect();
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    const scaleX = this.boardWidth / rect.width;
+    const scaleY = this.boardHeight / rect.height;
 
-    piece.inTray = false;
     this.activePiece = piece;
     this.dragOffset = {
       x: this.pieceWidth / 2,
       y: this.pieceHeight / 2
     };
 
-    // Calculate position in canvas coordinate space (360x360)
-    const scaleX = this.boardWidth / rect.width;
-    const scaleY = this.boardHeight / rect.height;
-
     piece.currentX = (clientX - rect.left) * scaleX - this.dragOffset.x;
     piece.currentY = (clientY - rect.top) * scaleY - this.dragOffset.y;
 
-    this.renderTray();
+    if (this.activeDragBtn) {
+      this.activeDragBtn.style.opacity = '0.35';
+    }
+
     this.renderInteractive();
   }
 
   bindEvents() {
     const canvas = this.interactiveCanvas;
 
+    const getPointerCoords = (e) => {
+      let clientX = e.clientX;
+      let clientY = e.clientY;
+      if (clientX === undefined && e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      }
+      return { clientX: clientX || 0, clientY: clientY || 0 };
+    };
+
     const onPointerMove = (e) => {
       if (!this.activePiece) return;
+      if (e.cancelable) e.preventDefault();
+
+      const { clientX, clientY } = getPointerCoords(e);
       const rect = canvas.getBoundingClientRect();
       const scaleX = this.boardWidth / rect.width;
       const scaleY = this.boardHeight / rect.height;
 
-      this.activePiece.currentX = (e.clientX - rect.left) * scaleX - this.dragOffset.x;
-      this.activePiece.currentY = (e.clientY - rect.top) * scaleY - this.dragOffset.y;
+      this.activePiece.currentX = (clientX - rect.left) * scaleX - this.dragOffset.x;
+      this.activePiece.currentY = (clientY - rect.top) * scaleY - this.dragOffset.y;
       this.renderInteractive();
     };
 
-    const onPointerUp = () => {
+    const onPointerUp = (e) => {
       if (!this.activePiece) return;
-      this.onMove();
       const piece = this.activePiece;
-      const snapDistance = 38; // Threshold in board pixels
+      const { clientX, clientY } = getPointerCoords(e);
 
+      const movedDist = Math.hypot(clientX - this.dragStartPos.x, clientY - this.dragStartPos.y);
+
+      if (movedDist < 12) {
+        if (this.selectedTrayPiece && this.selectedTrayPiece.id === piece.id) {
+          this.selectedTrayPiece = null;
+          piece.currentX = null;
+          piece.currentY = null;
+        } else {
+          this.selectedTrayPiece = piece;
+          piece.currentX = piece.targetX;
+          piece.currentY = piece.targetY;
+        }
+        if (this.activeDragBtn) this.activeDragBtn.style.opacity = '1';
+        this.activePiece = null;
+        this.activeDragBtn = null;
+        this.renderTray();
+        this.renderInteractive();
+        return;
+      }
+
+      this.onMove();
+      const snapDistance = 55;
       const dist = Math.hypot(
         piece.currentX - piece.targetX,
         piece.currentY - piece.targetY
       );
 
       if (dist < snapDistance) {
-        // Snap successfully!
         piece.snapped = true;
         piece.inTray = false;
         piece.currentX = piece.targetX;
         piece.currentY = piece.targetY;
         this.activePiece = null;
+        this.selectedTrayPiece = null;
+        this.activeDragBtn = null;
         this.renderBoard();
         this.renderInteractive();
         this.renderTray();
         this.onPieceSnapped(piece);
         this.checkWinCondition();
       } else {
-        // If dropped outside board or not near target, return to tray
-        piece.inTray = true;
+        if (this.activeDragBtn) this.activeDragBtn.style.opacity = '1';
+        piece.currentX = null;
+        piece.currentY = null;
         this.activePiece = null;
+        this.activeDragBtn = null;
         this.renderInteractive();
-        this.renderTray();
       }
     };
 
-    window.addEventListener('pointermove', onPointerMove);
+    this.boardEl.addEventListener('click', (e) => {
+      if (!this.selectedTrayPiece) return;
+      const piece = this.selectedTrayPiece;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = this.boardWidth / rect.width;
+      const scaleY = this.boardHeight / rect.height;
+      const clickX = (e.clientX - rect.left) * scaleX;
+      const clickY = (e.clientY - rect.top) * scaleY;
+
+      const dist = Math.hypot(
+        clickX - (piece.targetX + this.pieceWidth / 2),
+        clickY - (piece.targetY + this.pieceHeight / 2)
+      );
+
+      if (dist < 110) {
+        piece.snapped = true;
+        piece.inTray = false;
+        piece.currentX = piece.targetX;
+        piece.currentY = piece.targetY;
+        this.selectedTrayPiece = null;
+        this.renderBoard();
+        this.renderInteractive();
+        this.renderTray();
+        this.onPieceSnapped(piece);
+        this.checkWinCondition();
+      }
+    });
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
   }
 
   togglePreview() {
@@ -533,14 +587,10 @@ export class JigsawEngine {
     return this.showGhost;
   }
 
-  /**
-   * Hint: Automatically takes one unsnapped piece and places it correctly
-   */
   applyHint() {
     const unsnapped = this.pieces.filter(p => !p.snapped);
     if (unsnapped.length === 0) return false;
 
-    // Pick a random unsnapped piece
     const piece = unsnapped[Math.floor(Math.random() * unsnapped.length)];
     piece.snapped = true;
     piece.inTray = false;
@@ -549,6 +599,9 @@ export class JigsawEngine {
 
     if (this.activePiece && this.activePiece.id === piece.id) {
       this.activePiece = null;
+    }
+    if (this.selectedTrayPiece && this.selectedTrayPiece.id === piece.id) {
+      this.selectedTrayPiece = null;
     }
 
     this.renderBoard();
@@ -580,8 +633,11 @@ export class JigsawEngine {
     for (const piece of this.pieces) {
       piece.snapped = false;
       piece.inTray = true;
+      piece.currentX = null;
+      piece.currentY = null;
     }
     this.activePiece = null;
+    this.selectedTrayPiece = null;
     this.renderBoard();
     this.renderInteractive();
     this.renderTray();

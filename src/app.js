@@ -1,7 +1,7 @@
 /**
  * app.js - Main Application Coordinator & Routing
  * Orchestrates Jigsaw, Sudoku, Memory Training, Energy System,
- * Web Audio synthesis, Ad Placement API, streak tracking, and i18n.
+ * Custom Photo Upload, Score Comparison, Web Audio synthesis, and i18n.
  */
 
 import { StorageManager } from './storage.js';
@@ -95,7 +95,6 @@ class App {
       osc.start(now);
       osc.stop(now + 0.08);
     } else if (type === 'match' || type === 'chime') {
-      // Pleasant match chord
       [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -319,6 +318,40 @@ class App {
       }
     });
 
+    // Jigsaw Theme Selection Dropdown
+    document.getElementById('jigsaw-theme-select')?.addEventListener('change', (e) => {
+      this.playSound('tap');
+      if (this.jigsawEngine) {
+        this.jigsawEngine.setTheme(e.target.value);
+        this.updateJigsawStatus();
+      }
+    });
+
+    // Jigsaw Custom Photo Upload
+    const photoInput = document.getElementById('jigsaw-photo-input');
+    const uploadBtn = document.getElementById('btn-jigsaw-upload');
+    if (uploadBtn && photoInput) {
+      uploadBtn.addEventListener('click', () => {
+        this.playSound('tap');
+        photoInput.click();
+      });
+
+      photoInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            if (this.jigsawEngine) {
+              this.jigsawEngine.loadCustomImage(event.target.result);
+              this.updateJigsawStatus();
+              this.showToast('📷 已成功載入自訂相片拼圖！');
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
     // Sudoku Controls
     document.getElementById('sudoku-difficulty')?.addEventListener('change', (e) => {
       this.playSound('tap');
@@ -426,7 +459,6 @@ class App {
   switchMode(mode) {
     if (this.currentMode === mode) return;
 
-    // Check Energy
     if (!this.checkOrPromptEnergy()) {
       return;
     }
@@ -457,18 +489,20 @@ class App {
   }
 
   initGameMode(mode) {
-    // Consume 1 Energy point for starting a challenge
     this.storage.consumeEnergy(1);
     this.updateEnergyUI();
 
     if (mode === 'jigsaw') {
       const container = document.getElementById('jigsaw-container');
       const diffSelect = document.getElementById('jigsaw-difficulty');
+      const themeSelect = document.getElementById('jigsaw-theme-select');
       const gridSize = diffSelect ? parseInt(diffSelect.value, 10) : 4;
+      const theme = themeSelect ? themeSelect.value : 'daily';
 
       this.jigsawEngine = new JigsawEngine(container, {
         rows: gridSize,
         cols: gridSize,
+        theme,
         dateSeed: this.storage.getTodayDateString(),
         onPieceSnapped: () => {
           this.playSound('snap');
@@ -630,12 +664,13 @@ class App {
     this.launchConfetti();
 
     const updatedStreak = this.storage.recordDailyCompletion(mode);
-    this.storage.recordGameFinished(mode, this.secondsElapsed);
+    const { stats, comparison } = this.storage.recordGameFinished(mode, this.secondsElapsed);
     this.updateStreakBadge();
 
     const modal = document.getElementById('modal-victory');
     const timeSummary = document.getElementById('victory-time');
     const streakSummary = document.getElementById('victory-streak');
+    const comparisonBox = document.getElementById('victory-comparison');
 
     const minutes = String(Math.floor(this.secondsElapsed / 60)).padStart(2, '0');
     const seconds = String(this.secondsElapsed % 60).padStart(2, '0');
@@ -645,9 +680,28 @@ class App {
       streakSummary.textContent = this.i18n.t('streakUpdated', { count: updatedStreak.currentStreak });
     }
 
+    // Dynamic Score Comparison against Previous Run
+    if (comparisonBox && comparison) {
+      if (comparison.isNewBest) {
+        const extra = comparison.hasPrev ? `（比個人歷史最佳快了 ${comparison.absDiff} 秒 🚀）` : '（新最佳紀錄！）';
+        comparisonBox.className = 'w-full py-2 px-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center justify-center gap-1 animate-pulse';
+        comparisonBox.innerHTML = `<span>🏆</span><span>突破個人最佳紀錄！${extra}</span>`;
+      } else if (comparison.isImprovement) {
+        comparisonBox.className = 'w-full py-2 px-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1';
+        comparisonBox.innerHTML = `<span>⚡</span><span>比上次進步了 <b>${comparison.absDiff} 秒</b>！太棒了！</span>`;
+      } else if (comparison.isEqual) {
+        comparisonBox.className = 'w-full py-2 px-3 bg-indigo-500/15 border border-indigo-500/30 rounded-xl text-indigo-300 text-xs font-medium flex items-center justify-center gap-1';
+        comparisonBox.innerHTML = `<span>⏱️</span><span>與上次成績完全持平！維持水準！</span>`;
+      } else {
+        const prevM = String(Math.floor(comparison.prevTime / 60)).padStart(2, '0');
+        const prevS = String(comparison.prevTime % 60).padStart(2, '0');
+        comparisonBox.className = 'w-full py-2 px-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-amber-300 text-xs font-medium flex items-center justify-center gap-1';
+        comparisonBox.innerHTML = `<span>💪</span><span>比上次慢了 ${comparison.absDiff} 秒，下局加油！（上次：${prevM}:${prevS}）</span>`;
+      }
+    }
+
     if (modal) modal.classList.remove('hidden');
 
-    // Trigger Interstitial Ad after 1.8s
     setTimeout(() => {
       this.ads.showInterstitial({
         name: `victory_${mode}`,

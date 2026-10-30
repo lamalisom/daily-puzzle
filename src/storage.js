@@ -1,6 +1,6 @@
 /**
  * storage.js - LocalStorage manager for High-Yield H5 Web Game
- * Handles streak tracking, game state persistence, audio/settings, energy system, and user stats.
+ * Handles streak tracking, game state persistence, audio/settings, energy system, and score comparisons.
  */
 
 const STORAGE_KEYS = {
@@ -50,7 +50,6 @@ export const StorageManager = {
       const data = JSON.parse(saved);
       let { energy, lastUpdate } = data;
 
-      // Calculate offline auto-recharge
       if (energy < MAX_ENERGY) {
         const elapsed = now - lastUpdate;
         const pointsToAdd = Math.floor(elapsed / RECHARGE_INTERVAL_MS);
@@ -72,7 +71,7 @@ export const StorageManager = {
   consumeEnergy(amount = 1) {
     const data = this.getEnergyData();
     if (data.energy < amount) {
-      return false; // Not enough energy
+      return false;
     }
 
     const newEnergy = data.energy - amount;
@@ -187,7 +186,7 @@ export const StorageManager = {
   },
 
   /**
-   * Stats
+   * Stats & Score Comparisons
    */
   getStats() {
     try {
@@ -196,46 +195,78 @@ export const StorageManager = {
         jigsawPlayed: 0,
         jigsawWon: 0,
         jigsawBestTime: null,
+        jigsawLastTime: null,
         sudokuPlayed: 0,
         sudokuWon: 0,
         sudokuBestTime: null,
+        sudokuLastTime: null,
         memoryPlayed: 0,
         memoryWon: 0,
-        memoryBestTime: null
+        memoryBestTime: null,
+        memoryLastTime: null
       };
       return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
     } catch (e) {
-      return { jigsawPlayed: 0, jigsawWon: 0, jigsawBestTime: null, sudokuPlayed: 0, sudokuWon: 0, sudokuBestTime: null, memoryPlayed: 0, memoryWon: 0, memoryBestTime: null };
+      return {
+        jigsawPlayed: 0, jigsawWon: 0, jigsawBestTime: null, jigsawLastTime: null,
+        sudokuPlayed: 0, sudokuWon: 0, sudokuBestTime: null, sudokuLastTime: null,
+        memoryPlayed: 0, memoryWon: 0, memoryBestTime: null, memoryLastTime: null
+      };
     }
   },
 
   recordGameFinished(gameType, timeSeconds) {
     try {
       const stats = this.getStats();
-      if (gameType === 'jigsaw') {
-        stats.jigsawPlayed += 1;
-        stats.jigsawWon += 1;
-        if (!stats.jigsawBestTime || timeSeconds < stats.jigsawBestTime) {
-          stats.jigsawBestTime = timeSeconds;
-        }
-      } else if (gameType === 'sudoku') {
-        stats.sudokuPlayed += 1;
-        stats.sudokuWon += 1;
-        if (!stats.sudokuBestTime || timeSeconds < stats.sudokuBestTime) {
-          stats.sudokuBestTime = timeSeconds;
-        }
-      } else if (gameType === 'memory') {
-        stats.memoryPlayed += 1;
-        stats.memoryWon += 1;
-        if (!stats.memoryBestTime || timeSeconds < stats.memoryBestTime) {
-          stats.memoryBestTime = timeSeconds;
-        }
+      const playedKey = `${gameType}Played`;
+      const wonKey = `${gameType}Won`;
+      const bestKey = `${gameType}BestTime`;
+      const lastKey = `${gameType}LastTime`;
+
+      const prevTime = stats[lastKey] !== undefined ? stats[lastKey] : null;
+      const prevBest = stats[bestKey] !== undefined ? stats[bestKey] : null;
+
+      stats[playedKey] = (stats[playedKey] || 0) + 1;
+      stats[wonKey] = (stats[wonKey] || 0) + 1;
+
+      let isNewBest = false;
+      if (!prevBest || timeSeconds < prevBest) {
+        stats[bestKey] = timeSeconds;
+        isNewBest = true;
       }
+
+      let comparison = null;
+      if (prevTime !== null) {
+        const diff = timeSeconds - prevTime; // negative = faster (better)
+        comparison = {
+          hasPrev: true,
+          prevTime,
+          diff,
+          absDiff: Math.abs(diff),
+          isImprovement: diff < 0,
+          isEqual: diff === 0,
+          isNewBest
+        };
+      } else {
+        comparison = {
+          hasPrev: false,
+          prevTime: null,
+          diff: 0,
+          absDiff: 0,
+          isImprovement: true,
+          isEqual: false,
+          isNewBest: true
+        };
+      }
+
+      // Record this time as the last time for future comparison
+      stats[lastKey] = timeSeconds;
+
       localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));
-      return stats;
+      return { stats, comparison };
     } catch (e) {
       console.warn('StorageManager.recordGameFinished error:', e);
-      return null;
+      return { stats: this.getStats(), comparison: null };
     }
   }
 };

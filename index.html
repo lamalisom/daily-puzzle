@@ -6,7 +6,7 @@
   <title>每日益智大挑戰 | Daily Puzzles, Sudoku & Memory</title>
   
   <!-- PWA & SEO Meta -->
-  <meta name="description" content="免費遊玩每日拼圖、每日數獨與大腦記憶翻牌挑戰，支援手機離線遊玩、能量系統與每日連勝紀錄。">
+  <meta name="description" content="免費遊玩每日拼圖、每日數獨與大腦記憶翻牌挑戰，支援自訂相片上傳、成績進步比較、手機離線遊玩、能量系統與每日連勝紀錄。">
   <meta name="theme-color" content="#0b0f19">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
@@ -140,22 +140,48 @@
 
     <!-- 視圖 1: 每日拼圖 (Daily Jigsaw) -->
     <section id="view-jigsaw" class="flex flex-col flex-1">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2">
-          <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">難度:</label>
-          <select id="jigsaw-difficulty" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1">
-            <option value="3" data-i18n="diffEasy">簡單 (3x3)</option>
-            <option value="4" selected data-i18n="diffMedium">中等 (4x4)</option>
-            <option value="5" data-i18n="diffHard">困難 (5x5)</option>
-          </select>
+      <!-- 拼圖功能操作列（難度、主題選單、自訂上傳相片） -->
+      <div class="flex flex-col gap-1.5 mb-2 bg-slate-900/40 p-2 rounded-xl border border-slate-800">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <label class="text-xs text-slate-400 font-medium" data-i18n="difficulty">難度:</label>
+            <select id="jigsaw-difficulty" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-2 py-1">
+              <option value="3" data-i18n="diffEasy">簡單 (3x3)</option>
+              <option value="4" selected data-i18n="diffMedium">中等 (4x4)</option>
+              <option value="5" data-i18n="diffHard">困難 (5x5)</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="btn-jigsaw-preview" class="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="previewBtn">
+              預覽原圖
+            </button>
+            <button id="btn-jigsaw-reset" class="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="resetBtn">
+              重置
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="btn-jigsaw-preview" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="previewBtn">
-            預覽原圖
-          </button>
-          <button id="btn-jigsaw-reset" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs font-medium active:scale-95 transition-all" data-i18n="resetBtn">
-            重置
-          </button>
+
+        <!-- 主題切換與自訂相片上傳 -->
+        <div class="flex items-center justify-between pt-1 border-t border-slate-800/60">
+          <div class="flex items-center gap-1.5">
+            <label class="text-[11px] text-slate-400 font-medium">主題:</label>
+            <select id="jigsaw-theme-select" class="bg-slate-900 border border-slate-700 text-[11px] text-indigo-200 rounded-lg px-2 py-0.5 focus:outline-none">
+              <option value="daily">🎨 每日特選風景</option>
+              <option value="mountains">🏔️ 雪山日落</option>
+              <option value="forest">🌲 翠綠森林</option>
+              <option value="galaxy">🌌 宇宙星雲</option>
+              <option value="coast">🏖️ 黃金海岸</option>
+            </select>
+          </div>
+
+          <!-- 自訂相片上傳按鈕 -->
+          <div class="flex items-center">
+            <input type="file" id="jigsaw-photo-input" accept="image/*" class="hidden">
+            <button id="btn-jigsaw-upload" class="px-2 py-0.5 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 text-white rounded-lg text-[11px] font-medium flex items-center gap-1 shadow-sm active:scale-95 transition-all" title="上傳自己的相片製作拼圖">
+              <span>📷</span>
+              <span>自訂相片</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -266,7 +292,6 @@
       </div>
 
       <div class="flex flex-col gap-2">
-        <!-- 觀看廣告立即補體力按鈕 -->
         <button id="btn-watch-ad-energy" class="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-extrabold rounded-xl text-xs shadow-lg shadow-amber-500/30 active:scale-95 transition-all" data-i18n="watchAdForEnergy">
           觀看廣告獲取 +3 能量 ⚡
         </button>
@@ -277,18 +302,19 @@
     </div>
   </div>
 
-  <!-- 通關勝利賀采彈窗 -->
+  <!-- 通關勝利賀采彈窗 (包含與上次成績對比功能) -->
   <div id="modal-victory" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-slate-900 border border-indigo-500/50 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-pop">
       <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg shadow-amber-500/30">
         🏆
       </div>
       <h2 class="text-xl font-extrabold text-white mb-1" data-i18n="congratsTitle">恭喜通關！</h2>
-      <p class="text-xs text-slate-300 mb-4" data-i18n="congratsDesc">太厲害了！你順利完成了今天的益智挑戰。</p>
+      <p class="text-xs text-slate-300 mb-3" data-i18n="congratsDesc">太厲害了！你順利完成了今天的益智挑戰。</p>
 
-      <div class="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 mb-5 flex justify-around">
+      <!-- 時間與連勝摘要卡片 -->
+      <div class="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 mb-3 flex justify-around">
         <div>
-          <div class="text-[10px] text-slate-400 uppercase font-semibold" data-i18n="time">時間</div>
+          <div class="text-[10px] text-slate-400 uppercase font-semibold" data-i18n="time">本局耗時</div>
           <div id="victory-time" class="text-base font-bold text-indigo-400 font-mono">00:00</div>
         </div>
         <div class="border-r border-slate-800"></div>
@@ -297,6 +323,9 @@
           <div id="victory-streak" class="text-base font-bold text-amber-400">1 天 🔥</div>
         </div>
       </div>
+
+      <!-- 與上次成績對比提示區塊 (動態展示進步/個人紀錄) -->
+      <div id="victory-comparison" class="w-full mb-4"></div>
 
       <div class="flex flex-col gap-2">
         <button id="btn-victory-share" class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-indigo-600/30 active:scale-95 transition-all" data-i18n="shareBtn">
@@ -326,7 +355,7 @@
             <span>🧩</span>
             <span data-i18n="tabJigsaw">每日拼圖</span>
           </div>
-          <p data-i18n="rulesJigsaw">將拼圖片段拖曳到正確位置。靠近目標時會自動磁吸就位。</p>
+          <p data-i18n="rulesJigsaw">將拼圖片段拖曳到正確位置。靠近目標時會自動磁吸就位。您也可以點選自訂相片上傳喜愛的圖片！</p>
         </div>
 
         <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
